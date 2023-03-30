@@ -11,7 +11,7 @@ git clone https://github.com/Khoury-srg/Ouroboros.git
 
 Add the following line to "~/.bashrc"
 ```bash
-export PATH="$PATH:/path/to/<Julia directory>/bin" 
+export PATH="$PATH:/path/to/julia-1.8.5/bin" 
 ```
 then in terminal
 ```bash
@@ -21,7 +21,7 @@ julia
 checkout NeuralVerification.jl to the "ouroboros" branch.
 ```julia
 using Pkg
-Pkg.develop(path="/path/to/NeuralVerification.jl")
+Pkg.develop(path="/path/to/Ouroboros/NeuralVerification.jl")
 Pkg.add("LazySets")
 ```
 
@@ -40,7 +40,7 @@ julia.install()
 
 The following commands reproduce all the figures and the model accuracy table in our paper.
 ```bash
-cd /path/to/ouroboros/src
+cd /path/to/Ouroboros/src
 python plot_figures.py
 python generate_table.py
 ```
