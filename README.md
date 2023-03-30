@@ -38,12 +38,16 @@ import julia
 julia.install()
 ```
 
-The following commands run all experiments, draw all figures and generate the model accuracy table in our paper correspondingly.
+The following commands reproduce all the figures and the model accuracy table in our paper.
 ```bash
 cd /path/to/ouroboros/src
-python run_exp.py
 python plot_figures.py
 python generate_table.py
 ```
+To re-run all the experiments:
+```
+python run_exp.py
+```
+All the models and training curves will be stored in `results` and figures will be sotred in `imgs`.
 
-Our results are stored in the `paper_results` folder.
+A copy of our results are stored in the `paper_results` folder for your reference.
