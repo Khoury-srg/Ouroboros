@@ -1,0 +1,51 @@
+## LinnOS
+
+LinnOS is a NN-based predictor to predict an I/O latency based on the I/O queue
+lengths and history latencies.
+
+Inputs are current queue length, history queue length (x4), and history I/O
+latency (x4). That is 9 elements in total.
+
+Output is a binary: fast I/O or slow I/O.
+
+## dataset
+
+Each line is a data point, for example
+  "1,2,2,2,1,444,457,310,375,579"
+
+There are 10 elements.
+Here are their meanings:
+  - history queue length (int) x4
+  - Current queue length (int)
+  - history latency (int, in us) x4
+  - current latency (int, in us)
+
+The first 9 elements would be the inputs to NN, the final element is the ground truth.
+
+Because LinnOS handles a binary classification (fast vs. slow I/O),
+there is a threshold to distinguish fast and slow I/O.
+*I think* we can start from 800us, but feel free to update any threshold that works.
+
+
+## specification
+
+The spec will be relative spec.
+The idea is that given **longer** I/O queue lengths and **higher** history latencies,
+the prediction should only go from "fast" to "slow", but not vice versa.
+Again, here are some possibilities, but feel free to choose anything works.
+
+
+### spec 1
+
+X: input; an array of 9 elements (see input description above)
+Y: output; a binary int; 0 means fast, 1 means slow
+
+for two inputs, X0 and X1,
+ if X0[4] < X1[4] and other elements are the same,  // X0 has shorter queue than X1
+ then Y0 <= Y1                                      // Y0 should be "faster" than Y1
+
+### spec 2
+
+for two inputs, X0 and X1,
+ if X0[8] < X1[8] and other elements are the same,  // X0 has shorter latency than X1
+ then Y0 <= Y1                                      // Y0 should be "faster" than Y1
