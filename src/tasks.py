@@ -109,15 +109,9 @@ class Task():
             if self.add_counterexample:
                 for counterexample in counterexamples:
                     gt_y = self.get_label(counterexample, Y_spec)
-                    # print(self.training_data[-5:])
-                    # print(counterexample)
-                    # print(Y_spec)
-                    # print(gt_y)
-                    # print("===============")
-                    # print(self.training_data[-1])
+
                     self.training_data.append(counterexample, gt_y)
-                    # print(self.training_data[-1])
-                    # print("===============")
+
                     self.counterexample_data.append(counterexample, gt_y)
             self.failed_spec_list.append((X_spec, Y_spec))
             self.results.append(False)
@@ -255,8 +249,7 @@ class Task():
         acc = correct * 1. / size
         if verbose:
             print(f"Test Error: \n Accuracy: {(100*acc):>0.1f}%, Avg loss: {test_loss:>8f} \n")
-    #     digit_correct = digit_correct * 1. / digit_size
-    #     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Digit Accuracy: {(100*digit_correct):>0.1f}%, Positive: {(positive*100./size):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+
         return acc, test_loss
         
     def save_nnet(self, save_name):
@@ -448,12 +441,7 @@ class RedisTask(ClassificationTask):
 class MonotonicityTask(Task):
     def call_verification(self, nnet_path, X_spec, Y_spec):
         # print("===== verifying =====")
-        # print(nnet_path)
-        # print(X_spec)
-        # print(Y_spec)
-        # time.sleep(1)
         status, counterexamples, ratio = Main.MonoIncVerify(nnet_path, X_spec, Y_spec, max_iter=self.max_verify_iter, sampling_size=self.counterexample_sampling_size)
-        # time.sleep(1)
         # print("===== verification done  =====")
         return status, counterexamples, {"ratio": ratio}
     
@@ -547,33 +535,12 @@ class CardWikiTask(MonotonicityTask):
         lb = 0.5-self.free_dim_len
         ub = 0.5+self.free_dim_len
 
-        #### more specs ####
-        # self.target_dim_len = 0.04
-        # tlb = 0.2
-        # tub = tlb+self.target_dim_len
-        
-        # for i in range(10):
-        #     self.X_specs.append(([tlb, lb, lb, lb], [tub, ub, ub, ub]))
-        #     self.Y_specs.append([0, -1]) # dim, direction
-        #     tlb, tub = tub, tub+self.target_dim_len
-
-        #### less specs ####
-
         self.target_dim_len = 0.4
         tlb = 0.3
         tub = tlb+self.target_dim_len
         
         self.X_specs.append(([tlb, lb, lb, lb], [tub, ub, ub, ub]))
         self.Y_specs.append([0, -1]) # dim, direction
-        
-        # self.X_specs.append(([lb, tlb, lb, lb], [ub, tub, ub, ub]))
-        # self.Y_specs.append([1, 1]) # dim, direction
-        
-        # self.X_specs.append(([lb, lb, tlb, lb], [ub, ub, tub, ub]))
-        # self.Y_specs.append([2, -1]) # dim, direction
-        
-        # self.X_specs.append(([lb, lb, lb, tlb], [ub, ub, ub, tub]))
-        # self.Y_specs.append([3, 1]) # dim, direction
         
         return self.X_specs, self.Y_specs, self.free_dim_len            
     
@@ -615,11 +582,6 @@ class CardWikiTask(MonotonicityTask):
     
     def training_data_spec_check(self):
         return 0
-    
-    # def get_label(self, x, Y_spec):
-    #     xs_idx = self.training_data.knn.get_nns_by_vector(x, 3) # will find the 1000 nearest neighbors
-    #     y = np.array([np.mean([self.training_data.ys[idx] for idx in xs_idx])])
-    #     return y
     
     def set_spec_free_dim_len(self):
         pass
@@ -666,9 +628,7 @@ class LinnosTask(MonotonicityTask):
     
     def get_model(self):
         return models.FC(2, 9, 300, 1)
-        # return models.FC(1, 9, 1000, 1)
-        # return models.FC(1, 9, 300, 1)
-    
+
     def get_data(self):
         training_data = datasets.LinnosDataset("../data/linnos/linnos.csv", test=False)
         testing_data = datasets.LinnosDataset("../data/linnos/linnos.csv", test=True)
@@ -681,15 +641,6 @@ class LinnosTask(MonotonicityTask):
         
         normal_acc_cnt, normal_loss = self.compute_normal_loss(model, normal_X, normal_y)
         counter_acc_cnt, counter_loss = self.compute_counter_loss(model, counter_X, counter_y)
-        
-        # print("normal_acc_cnt: ", normal_acc_cnt)
-        # print("counter_acc_cnt: ", counter_acc_cnt)
-
-        # print("normal  loss: ", normal_loss)
-        # print("counter loss: ", counter_loss)
-
-        # print("normal loss, counter loss:")
-        # print(normal_loss, counter_loss, len(normal_X), len(counter_X))
         
         return normal_acc_cnt+counter_acc_cnt, normal_loss + counter_loss * 1e-1
 
@@ -722,10 +673,6 @@ class LinnosTask(MonotonicityTask):
     def training_data_spec_check(self):
         return 0
     
-    # def get_label(self, x, Y_spec):
-    #     xs_idx = self.training_data.knn.get_nns_by_vector(x, 3) # will find the 3 nearest neighbors
-    #     y = np.array([np.mean([self.training_data.ys[idx] for idx in xs_idx])])
-        # return y
 
     def set_spec_free_dim_len(self):
         pass
@@ -750,58 +697,6 @@ class LinnosTask(MonotonicityTask):
         return (abs(pred - y) < 5e-2).sum()
     
 class ProbabilityTask(Task):
-    # def check_specs(self, nnet_path):
-    #     all_safe = True
-    #     results = []
-    #     spec_check_list_new = []
-    #     if not self.early_rejection:
-    #         self.spec_check_list = list(zip(self.X_specs, self.Y_specs))
-        
-    #     self.probs = [[] for i in range(len(self.X_specs))]
-    #     status, counterexamples = None, None
-    #     total_verified_volume = 0
-    #     for j, (X_spec, Y_spec) in enumerate(self.spec_check_list):
-            
-    #         spec_volume = np.prod(np.array(X_spec[1]) - X_spec[0])
-    #         status, counterexamples, verified_volume = Main.prob_verify_Neurify(nnet_path, X_spec, Y_spec, 0.7, min_size=self.min_verify_size, sampling_size=int(spec_volume*self.counterexample_sampling_size+1))
-    #         print(verified_volume, '/', spec_volume, '=', verified_volume/spec_volume)
-    #         total_verified_volume += verified_volume
-
-    #         results.append(status == "holds")
-    #         if status == "holds":
-    #             print("Verified safe for free_dim_len =", self.free_dim_len)
-    #             results.append(True)
-    #         elif status == "violated":
-    #             print("adding counter example, num=", len(counterexamples))
-    #             for counterexample in counterexamples:
-    #                 gt_y = self.get_label(counterexample, Y_spec)
-    #                 self.training_data.append(counterexample, gt_y)
-    #             spec_check_list_new.append((X_spec, Y_spec))
-    #             results.append(False)
-    #         elif status == "unknown":
-    #             self.max_verify_iter *= 2
-    #             spec_check_list_new.append((X_spec, Y_spec))
-    #             results.append(False)
-        
-    #     verified_prob = total_verified_volume / self.total_spec_volume
-    #     print("Total verified volume: ", total_verified_volume)
-    #     print("Total spec volume:     ", self.total_spec_volume)
-    #     print("verified prob:         ", verified_prob)
-        
-    #     self.prob_hist.append(verified_prob)
-    #     print("checked spec count: ", len(self.spec_check_list))
-    #     print("unsafe spec count: ", len(spec_check_list_new))
-
-    #     if len(self.spec_check_list) != len(self.X_specs):
-    #         results = results + [False] * (len(self.X_specs) - len(self.spec_check_list))
-            
-    #     if self.early_rejection:
-    #         if len(spec_check_list_new) == 0:
-    #             self.spec_check_list = list(zip(self.X_specs, self.Y_specs))
-    #         else:
-    #             self.spec_check_list = spec_check_list_new
-    #     self.draw()
-    #     return verified_prob > 0.7
     
     def initilaize_verification(self):
         super().initilaize_verification()
@@ -847,13 +742,6 @@ class BloomCrimeTask(ProbabilityTask):
         self.last_verified_volume = 0
         self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10]).to(self.device))
 
-    # def compute_loss(self, model, X, y):
-    #     pred = model(X)
-    #     model = model.to("cpu")
-    #     X, y, pred = X.to("cpu"), y.to("cpu"), pred.to("cpu")
-    #     acc_cnt = self.acc_cnt_fn(pred, y)
-    #     loss = self.loss_fn(pred, y)
-    #     return acc_cnt, loss
 
     def get_model(self):
         return models.FC(2, 2, 50, 1)
@@ -907,10 +795,7 @@ class BloomCrimeTask(ProbabilityTask):
         for rect in self.safe_rects:
             self.X_specs.append(([rect.lx, rect.ly], [rect.hx, rect.hy]))
             self.Y_specs.append([np.ones((1,1)), np.zeros(1)])
-        
-#         self.X_specs.append(([-1.0, -1.0, 0.0], [1.0, 1.0, 1.0]))
-#         self.Y_specs.append([-np.ones((1,1)), np.zeros(1)])
-        
+
         self.free_dim_len = 0.51
         
         return self.X_specs, self.Y_specs, self.free_dim_len            
@@ -946,226 +831,12 @@ class BloomCrimeTask(ProbabilityTask):
     def is_finished(self, results, acc):
         # self.draw()
         return np.all(results)
-        # if np.all(results):
-        #     if self.free_dim_len >= 0.5:
-        #         return True
-        #     else:
-        #         self.free_dim_len = min(self.free_dim_len * 2, 0.5)
-        #         self.set_spec_free_dim_len()
-        # return False
+
     
     def acc_cnt_fn(self, pred, y):
         return (((pred > 0) != y).sum(axis=-1) == 0).sum()
     
-    
-
-
-# class DBIndexTask():
-#     def __init__(self, add_counterexample = False,  incremental_training = False, batch_counterexample = False, early_rejection = False, incremental_verification = False, start_finetune_epoch = -1, time_out=60):
-        
-#         self.add_counterexample = add_counterexample
-#         self.incremental_training = incremental_training
-#         self.batch_counterexample = batch_counterexample
-#         self.early_rejection = early_rejection
-#         self.incremental_verification = incremental_verification
-#         self.start_finetune_epoch = start_finetune_epoch
-#         self.time_out = time_out
-
-#         self.set_seed()
-        
-#         self.training_data, self.testing_data = self.get_data()
-#         self.counterexample_data = datasets.EmptyDataset()
-#         self.X_specs, self.Y_specs, self.free_dim_len = self.get_specs()
-#         self.spec_check_list = list(zip(self.X_specs, self.Y_specs))
-#         self.model = self.get_model()
-        
-#         self.set_params()
-
-#         self.reset_cnt = 0
-
-#         if not add_counterexample:
-#             self.counterexample_sampling_size = 0
-#     @property
-#     def save_name(self):
-#         return self.__class__.__name__ + ''.join(list(map(lambda x: str(int(x)), [self.add_counterexample, self.incremental_training, self.batch_counterexample, self.early_rejection, self.incremental_verification, self.start_finetune_epoch]))) + "_" + str(self.time_out)
-
-        
-
-#     def set_params(self):
-#         self.save_prefix="../model/redis/"
-#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-#         self.epochs = 100000
-#         self.batch_size = 1000
-#         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
-#         self.loss_fn = nn.CrossEntropyLoss()
-        
-#         self.max_verify_iter = 100
-#         self.counterexample_sampling_size = 100
-#         self.is_polytope_spec = True
-#         self.custom_collate = False
-
-#         # self.time_out = 5
-#         self.v2_num = 100
-        
-#     def get_model(self):
-#         v1_model = models.FC(1, 1, 300, 1)
-#         v2_model = [models.FC(1, 1, 32, 1) for i in range(100)]
-#         return [v1_model] + v2_model
-    
-#     def get_data(self):
-        
-#         v1_data = datasets.SmallWikiDataset()
-#         n = len(v1_data) // self.v2_num
-#         v2_datas = [datasets.SmallWikiDataset(start=i*n, end=(i+1)*n) for i in range(self.v2_num)]
-#         training_data = [v1_data] + v2_datas
-#         testing_data = training_data
-#         return training_data, testing_data
-        
-#     def get_specs(self, normalize=False):
-#         X_spec = self.X_specs
-        
-        
-#         return self.X_specs, self.Y_specs, self.free_dim_len        
-    
-#     def get_label(self, x, Y_spec):
-#         return 0
-
-#     def set_spec_free_dim_len(self):
-#         self.X_specs[0][1][0] = self.free_dim_len
-    
-#     def start_verify(self, acc, loss):
-#         return acc > 0.9
-    
-#     def is_finished(self, results, acc):
-#         if np.all(results) and acc > 0.9:
-#             if self.free_dim_len >= 0.5:
-#                 return True
-#             else:
-#                 self.free_dim_len = min(self.free_dim_len * 2, 0.5)
-#                 self.set_spec_free_dim_len()
-#         return False
-    
-#     def initilaize_verification(self):
-#         self.verification_results = []
-#         self.failed_spec_list = []
-#         if not self.early_rejection or len(self.spec_check_list) == 0:
-#             self.spec_check_list = list(zip(self.X_specs, self.Y_specs))
-#         self.results = []
-
-#     def process_results(self, X_spec, Y_spec, status, training_data, counterexample_data, counterexamples):
-#         if not self.add_counterexample:
-#             counterexamples = []
-#         self.results.append(status == "holds")
-#         if status == "holds":
-#             print("Verified safe for free_dim_len =", self.free_dim_len)
-#             self.results.append(True)
-#         elif status == "violated":
-#             print("adding counter example, sampling_size=", self.counterexample_sampling_size)
-#             print("adding counter example, num=", len(counterexamples))
-#             if self.add_counterexample:
-#                 for counterexample in counterexamples:
-#                     gt_y = self.get_label(counterexample, Y_spec)
-#                     training_data.append(counterexample, gt_y)
-#                     counterexample_data.append(counterexample, gt_y)
-#             self.failed_spec_list.append((X_spec, Y_spec))
-#             self.results.append(False)
-#         elif status == "unknown":
-#             self.max_verify_iter *= 2
-#             self.failed_spec_list.append((X_spec, Y_spec))
-#             self.results.append(False)
-
-#     def finalize_verification(self):
-#         if len(self.spec_check_list) != len(self.X_specs): # used early rejection, not all specs were checked. Assuming they are false.
-#             self.results = self.results + [False] * (len(self.X_specs) - len(self.spec_check_list))
-            
-#         if self.early_rejection:
-#             self.spec_check_list = self.failed_spec_list
-
-#     def check_specs(self, nnet_path, training_data, counterexample_data):
-        
-#         self.initilaize_verification()
-#         print("====================")
-#         for j, (X_spec, Y_spec) in enumerate(self.spec_check_list):
-            
-#             # print("Y_spec:", Y_spec)
-
-#             status, counterexamples, info = self.call_verification(nnet_path, X_spec, Y_spec)
-#             if self.add_counterexample and not self.batch_counterexample and not counterexamples is None:
-#                 counterexamples = counterexamples[:1] if len(counterexamples)>0 else []
-#             self.process_results(X_spec, Y_spec, status, training_data, counterexample_data, counterexamples)
-        
-#         print("checked spec count: ", len(self.spec_check_list))
-#         print("unsafe spec count: ", len(self.failed_spec_list))
-
-#         self.finalize_verification()
-#         return self.results
-
-    
-    
-#     def train_and_verify(self):
-        
-#         # self.training_data_spec_check()
-        
-#         print("Using {} device".format(self.device))
-
-#         accs = [0]
-#         losses = [0]
-#         verified_steps = []
-#         timestamps = [("training", -1, 0, 0)]
-        
-#         task_start_time = time.time()
-        
-#         for i in range(self.v2_num):
-            
-#             for t in range(self.epochs):
-#                 print(f"Epoch {t+1}\n-------------------------------")
-                
-#                 if t == self.start_finetune_epoch:
-#                     self.start_finetune()
-                
-#                 start_time = time.time()
-#                 acc, loss = self.train(self.model[i], self.training_data[i], self.compute_loss, verbose=True)
-#                 timestamps.append(("training", t, time.time() - start_time, time.time() - task_start_time))
-
-#                 accs.append(acc)
-#                 losses.append(loss)
-                
-#                 if self.start_verify(acc, loss):
-#                     print("start verifying")
-#                     nnet_path = self.save_prefix + str(i) + ".nnet"
-#                     self.save_nnet(nnet_path)
-                    
-#                     start_time = time.time()
-#                     results = self.check_specs(nnet_path, self.training_data[i], self.counterexample_data[i])
-#                     # train_dataloader = DataLoader(self.training_data, batch_size=self.batch_size)
-#                     acc, loss = self.test(self.model[i], self.training_data[i], self.compute_loss)
-#                     cur_t = time.time()
-#                     timestamps.append(("verification", t, cur_t - start_time, cur_t - task_start_time))
-#                     verified_steps.append((t, cur_t - task_start_time, np.all(results)))
-#                     accs.append(acc)
-#                     losses.append(loss)
-                    
-#                     if self.is_finished(results, acc):
-#                         break
-                    
-#                     if not self.incremental_training:
-#                         break
-                
-#                 print("time:", time.time() - task_start_time, self.time_out)
-#                 if time.time() - task_start_time > self.time_out:
-#                     break
-        
-#             print("Done!")
-
-#             np.savez("../results/" + self.save_name, 
-#                     accs = accs,
-#                     losses = losses,
-#                     verified_steps = verified_steps,
-#                     timestamps = timestamps, 
-#                     )
-#         return accs, losses, verified_steps, timestamps
-
-
+ 
 class DBIndexTask(Task):
     def __init__(self, add_counterexample = False,  incremental_training = False, batch_counterexample = False, early_rejection = False, incremental_verification = False, start_finetune_epoch = -1, time_out=60, task_index=0, v2_num=10):
         self.add_counterexample = add_counterexample
@@ -1275,20 +946,6 @@ class DBIndexTask(Task):
             Y_spec = [np.vstack([-1., 1.]).astype(np.float), np.array([-(y_l - y_padding), y_r + y_padding]).astype(np.float)]
             X_specs.append(X_spec)
             Y_specs.append(Y_spec)
-
-        # x_min = np.min(np.ravel(self.training_data.xs))
-        # x_max = np.max(np.ravel(self.training_data.xs))
-        # y_min = np.min(np.ravel(self.training_data.ys))
-        # y_max = np.max(np.ravel(self.training_data.ys))
-        # dx = (x_max - x_min) / 11
-        # dy = (y_max - y_min) / 11
-        # x_padding = dx/10
-        # y_padding = dy/2
-        # for i in range(10):
-        #     X_spec = (np.array([x_min + i*dx + x_padding]).astype(np.float), np.array([x_min + (i+1)*dx - x_padding]).astype(np.float))
-        #     Y_spec = [np.vstack([-1., 1.]).astype(np.float), np.array([-(y_min + i*dy - y_padding), y_min + (i+1)*dy + y_padding]).astype(np.float)]
-        #     X_specs.append(X_spec)
-        #     Y_specs.append(Y_spec)
 
         free_dim_len = 0.5
         

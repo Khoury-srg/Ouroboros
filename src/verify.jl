@@ -1,28 +1,5 @@
-# using Pkg
-# Pkg.activate("/home/mlsys23/ouroboros/NeuralVerification.jl")
-using Revise
 using NeuralVerification, LazySets
 import NeuralVerification: get_gradient_bounds, get_gradient
-
-# function verify(nnet_file, X_spec, Y_spec; max_iter=100, sampling_size=20, is_polytope=false)
-#     net = read_nnet(nnet_file)
-#     # println("=========")
-#     # println(nnet_file)
-#     # print(net)
-#     # println(X_spec)
-#     # println(Y_spec)
-#     X = is_polytope ? HPolytope(X_spec[1], X_spec[2]) : Hyperrectangle(low=X_spec[1], high=X_spec[2])
-#     Y = HPolytope(Y_spec[1], Y_spec[2])
-#     solver = Neurify(max_iter=max_iter)
-#     prob = Problem(net, X, Y)
-#     # println("start solving")
-#     res = solve(solver, prob, sampling_size=sampling_size)[1]
-#     # println("done solving")
-#     res.status == :violated && (return "violated", res.counter_examples)
-#     res.status == :unknown && (return "unknown", nothing)
-
-#     return "holds", nothing
-# end
 
 function verify(nnet_file, X_spec, Y_spec; max_iter=100, sampling_size=20, is_polytope=false)
     net = read_nnet(nnet_file)
@@ -146,72 +123,6 @@ function sample_grad_counter_examples(net, input, dim, direction, sampling_size)
 
     return counter_examp1es
 end
-
-# function prob_verify_Neurify(nnet_file, X_spec, Y_spec, desired_prob, max_iter, min_size, sampling_size)
-
-#     net = read_nnet(nnet_file)
-    
-#     Y = HPolytope(Y_spec[1], Y_spec[2])
-#     @show X_spec
-#     @show X_spec[1]
-#     @show X_spec[2]
-
-#     Xs = [Hyperrectangle(low=X_spec[1], high=X_spec[2])]
-    
-
-#     total_volume = sum([volume(X) for X in Xs])
-#     @show total_volume
-#     # return true, 0, nothing
-#     verified_volume = 0
-
-#     counter_examples = []
-
-#     remains = []
-#     for i in 1:max_iter
-#         X = popfirst!(Xs)
-        
-#         solver = Neurify(max_iter=1)
-#         prob = Problem(net, X, Y)
-#         res = solve(solver, prob, sampling_size=1)[1]
-#         # res = solve(solver, prob)
-#         @show res.status, volume(X)
-#         if res.status == :holds
-#             verified_volume += volume(X)
-#             (verified_volume / total_volume > desired_prob) && break
-#             isempty(Xs) && break
-#             continue
-#         end
-
-#         # divide X into two subsets
-#         X1, X2 = divide(X)
-#         push!(Xs, X1)
-#         push!(Xs, X2)
-        
-#         # res.status == :violated && (push!(counter_examples, res.counter_examples))
-#     end
-
-#     for X in Xs
-#         solver = Neurify(max_iter=1)
-#         prob = Problem(net, X, Y)
-#         res = solve(solver, prob, sampling_size=sampling_size ÷ length(Xs))[1]
-#         @show res.status, volume(X)
-#         if res.status == :holds
-#             verified_volume += volume(X)
-#             (verified_volume / total_volume > desired_prob) && break
-#             continue
-#         end
-#         res.status == :violated && (push!(counter_examples, res.counter_examples))
-#     end
-
-#     @show total_volume
-
-#     println("verified prob: ", verified_volume / total_volume)
-
-#     (verified_volume / total_volume > desired_prob) && return true, nothing, verified_volume
-
-#     return "violated", vcat(counter_examples...), verified_volume
-# end
-
 
 function prob_verify_Neurify(nnet_file, X_spec, Y_spec, desired_prob; max_iter = 1e9, min_size = 0, sampling_size = 20)
     println("--- in verify ---")
