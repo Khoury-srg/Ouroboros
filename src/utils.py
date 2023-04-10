@@ -85,7 +85,7 @@ def plot_acc_loss(file_path, save_path):
     plt.savefig(save_path)
     plt.show()
 
-def merge_db_results(time_out = 300):
+def merge_db_results(time_out = 300, v2_num=10):
     finetune_epoch = 5
     accs = []
     losses = []
@@ -95,7 +95,7 @@ def merge_db_results(time_out = 300):
     for encoding in encodings:
         verification_time = 0
         training_time = 0
-        for task_index in range(11):
+        for task_index in range(v2_num+1):
             file_path =  "../results/DBIndexTask_" + str(task_index) + "_" + encoding + "_" + str(time_out) + ".npz"
             data = np.load(file_path)
             timestamps.append(data["timestamps"])

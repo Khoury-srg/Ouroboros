@@ -484,8 +484,14 @@ class DBDataset(BaseDataset):
         self.scale = self.data.max() - self.data.min()
         self.shift = self.data.min()
 
+        # print("start end: ", start, " ", end)
+        # print("self.scale: ")
+        # print(self.scale)
+        # print("self.shift: ")
+        # print(self.shift)
+
         if normalize:
-            self.data = (self.data-self.shift)/self.scale
+            self.data = (self.data.astype(np.float64)-self.shift)/self.scale
 
         np.random.seed(0)
         idxes = list(range(len(self.data)))
@@ -510,14 +516,14 @@ class DBDataset(BaseDataset):
     def __getitem__(self, idx):
         # print(np.array([self.xs[idx]]), np.array([self.ys[idx]]))
         # return np.array([self.data.iat[idx, 0]]).astype(np.float32), np.array([self.data.iat[idx, 1]]).astype(np.float32)
-        return np.array([self.xs[idx]]).astype(np.float32), np.array([self.ys[idx]]).astype(np.float32)
+        return np.array([self.xs[idx]]).astype(np.float64), np.array([self.ys[idx]]).astype(np.float64)
 
     def __len__(self):
         return len(self.xs)
 
     def append(self, x, y):
-        self.xs.append(float(x))
-        self.ys.append(float(y))
+        self.xs.append(np.float64(x))
+        self.ys.append(np.float64(y))
 
 class SmallWikiDataset(DBDataset):
     def __init__(self, start=None, end=None, index=None, normalize=True):
@@ -525,11 +531,20 @@ class SmallWikiDataset(DBDataset):
         self.data = pd.read_csv(data_path)
         super(SmallWikiDataset, self).__init__(start, end, index, normalize)
         
-        
-
 class LognormalDataset(DBDataset):
     def __init__(self, start=None, end=None, index=None, normalize=True):
         data_path = "../data/learned_index/small_lognormal.csv"
         self.data = pd.read_csv(data_path)
         super(LognormalDataset, self).__init__(start, end, index, normalize)
+
+class FBDataset(DBDataset):
+    def __init__(self, start=None, end=None, index=None, normalize=True):
+        data_path = "../data/learned_index/fb_0.15M_uint64"
+        d = np.fromfile(data_path, dtype=np.uint64)[1:-1]
+        # print(np.fromfile(data_path, dtype=np.uint64))
+        self.data = pd.DataFrame({"x_train": d, "y_train": np.arange(len(d))})
+        # add an index column named "x_train"
+        # self.data.index.name = "x_train"
+        # print(self.data)
+        super(FBDataset, self).__init__(start, end, index, normalize)
         

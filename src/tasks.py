@@ -1,4 +1,5 @@
 import torch
+import copy
 import numpy as np
 from numpy.core.numeric import Inf
 import torch
@@ -105,6 +106,7 @@ class Task():
             self.results.append(True)
         elif status == "violated":
             print("adding counter example, sampling_size=", self.counterexample_sampling_size)
+            counterexamples = counterexamples[:self.counterexample_sampling_size]
             print("adding counter example, num=", len(counterexamples))
             if self.add_counterexample:
                 for counterexample in counterexamples:
@@ -125,14 +127,13 @@ class Task():
             self.results = self.results + [False] * (len(self.X_specs) - len(self.spec_check_list))
             
         if self.early_rejection:
-            self.spec_check_list = self.failed_spec_list
+            self.spec_check_list = copy.deepcopy(self.failed_spec_list)
 
     def check_specs(self, nnet_path):
         
         self.initilaize_verification()
         print("====================")
         for j, (X_spec, Y_spec) in enumerate(self.spec_check_list):
-            
             # print("Y_spec:", Y_spec)
             status, counterexamples, info = self.call_verification(nnet_path, X_spec, Y_spec)
             if self.add_counterexample and not self.batch_counterexample and not counterexamples is None:
@@ -194,6 +195,13 @@ class Task():
         X, y = X.to(self.device), y.to(self.device)
         # Compute prediction error
         pred = model(X)
+        # print("===")
+        # print("X")
+        # print(X)
+        # print("pred")
+        # print(pred)
+        # print("y")
+        # print(y)
         acc_cnt = self.acc_cnt_fn(pred, y)
         loss = self.loss_fn(pred, y)
         return acc_cnt, loss
@@ -206,7 +214,9 @@ class Task():
         num_batches = len(dataloader)
         train_loss, correct = 0, 0
         model = model.to(self.device)
-        
+        # print(data.data)
+        # print(data.scale)
+        # print(data.shift)
         for batch, (X, y) in enumerate(dataloader):
             X = self.to_device(X, self.device)
             y = self.to_device(y, self.device)
@@ -700,7 +710,10 @@ class ProbabilityTask(Task):
     
     def initilaize_verification(self):
         super().initilaize_verification()
-        self.total_verified_volume = 0 if not self.early_rejection else self.last_verified_volume
+        # self.total_verified_volume = 0
+        if not self.early_rejection or len(self.spec_check_list) == len(self.X_specs):
+            self.safe_volume = 0
+        self.total_verified_volume = 0 if not self.early_rejection else self.last_safe_volume
 
     def call_verification(self, nnet_path, X_spec, Y_spec):
         spec_volume = np.prod(np.array(X_spec[1]) - X_spec[0])
@@ -710,16 +723,54 @@ class ProbabilityTask(Task):
         status, counterexamples, verified_volume = Main.prob_verify_Ai2z(nnet_path, X_spec, Y_spec, self.desired_prob, min_size=self.min_verify_size, sampling_size=int(spec_volume*self.counterexample_sampling_size+1))
         # print(verified_volume, '/', spec_volume, '=', verified_volume/spec_volume)
         self.total_verified_volume += verified_volume
+        if status == "holds":
+            self.safe_volume += verified_volume
         return status, counterexamples, {"verified_volume": verified_volume}
+
+    
+    def check_specs(self, nnet_path):
+        
+        self.initilaize_verification()
+        print("====================")
+        checked_num = len(self.spec_check_list)
+        print(len(self.spec_check_list))
+        for j, (X_spec, Y_spec) in enumerate(self.spec_check_list):
+            # print("Y_spec:", Y_spec)
+            status, counterexamples, info = self.call_verification(nnet_path, X_spec, Y_spec)
+            if self.add_counterexample and not self.batch_counterexample and not counterexamples is None:
+                counterexamples = counterexamples[:1] if len(counterexamples)>0 else []
+            self.process_results(X_spec, Y_spec, status, counterexamples)
+        
+        print("checked spec count: ", len(self.spec_check_list))
+        print("unsafe spec count: ", len(self.failed_spec_list))
+        print("==========")
+        # print(len(self.spec_check_list))
+        # print(len(self.X_specs))
+        # print(len(self.spec_check_list) < len(self.X_specs))
+        # print(np.all(self.results))
+        
+        self.finalize_verification()
+
+        if self.early_rejection and np.all(self.results) and checked_num < len(self.X_specs):
+            self.spec_check_list = []
+            self.last_safe_volume = 0
+            self.check_specs(nnet_path)
+
+        return self.results
 
     def finalize_verification(self):
         super().finalize_verification()
         verified_prob = self.total_verified_volume / self.total_spec_volume
-        self.last_verified_volume = self.total_verified_volume if self.early_rejection else 0
+        self.last_safe_volume = self.safe_volume if self.early_rejection else 0
         print("Total verified volume: ", self.total_verified_volume)
         print("Total spec volume:     ", self.total_spec_volume)
         print("Total verified prob:         ", verified_prob)
-        self.results = [verified_prob > 0.7]
+        
+        self.results = [(verified_prob > self.desired_prob)]
+
+        # if (verified_prob > self.desired_prob):
+        #     self.spec_check_list = []
+        #     self.last_safe_volume = 0
     
 
 class BloomCrimeTask(ProbabilityTask):
@@ -731,25 +782,30 @@ class BloomCrimeTask(ProbabilityTask):
         self.batch_size = 100
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
         
-        self.max_verify_iter = 10000
-        self.min_verify_size = 0.001
+        self.max_verify_iter = 1000000
+        self.min_verify_size = 0.00001
         self.counterexample_sampling_size = 1000
-        self.desired_prob = 0.8
+        self.desired_prob = 0.95
         
         self.prob_hist = []
         # self.time_out = 30
         self.custom_collate = False
-        self.last_verified_volume = 0
+        self.last_safe_volume = 0
         self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10]).to(self.device))
 
+    def finalize_verification(self):
+        super().finalize_verification()
+        pos_num = len(self.positive_data)
+        all_num = len(self.training_data)
+        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([(all_num/pos_num)*10]).to(self.device))
 
     def get_model(self):
-        return models.FC(2, 2, 50, 1)
+        return models.FC(3, 2, 500, 1)
     
     def get_data(self):
         training_data = datasets.CrimeDataset("../data/bloom_crime/crime.csv", test=False)
-        testing_data = datasets.CrimeDataset("../data/bloom_crime/crime.csv", test=True)
-        self.negative_data = datasets.CrimeDataset("../data/bloom_crime/crime.csv", test=False)
+        testing_data = datasets.CrimeDataset("../data/bloom_crime/crime.csv", test=False)
+        self.positive_data = datasets.CrimeDataset("../data/bloom_crime/crime.csv", test=False)
     
         return training_data, testing_data
     
@@ -786,15 +842,25 @@ class BloomCrimeTask(ProbabilityTask):
 
             return get_safe_rects(depth+1, max_depth, rect1, data) + get_safe_rects(depth+1, max_depth, rect2, data)
 
-        self.safe_rects = get_safe_rects(0, 9, Rect(0,0,1,1), np.array(self.negative_data.xs))
+        self.safe_rects = get_safe_rects(0, 9, Rect(0,0,1,1), np.array(self.positive_data.xs))
         self.total_spec_volume = np.sum([(r.hx-r.lx)*(r.hy-r.ly) for r in self.safe_rects])
         
         self.X_specs = []
         self.Y_specs = []
+
+        self.init_nega_data=True
         
         for rect in self.safe_rects:
             self.X_specs.append(([rect.lx, rect.ly], [rect.hx, rect.hy]))
             self.Y_specs.append([np.ones((1,1)), np.zeros(1)])
+            if self.init_nega_data:
+                size = (rect.hx - rect.lx) * (rect.hy - rect.ly)
+                num_samples = int(np.ceil(size/0.001))
+                x = np.random.uniform(rect.lx, rect.hx, num_samples)
+                y = np.random.uniform(rect.ly, rect.hy, num_samples)
+                samples = np.vstack((x,y)).T
+                for s in samples:
+                    self.training_data.append(s, np.zeros(1).astype('float32'))
 
         self.free_dim_len = 0.51
         
@@ -803,10 +869,10 @@ class BloomCrimeTask(ProbabilityTask):
     def training_data_spec_check(self):
         return 0
     
-    def draw(self):
+    def draw(self, data):
         fig, ax = plt.subplots()
-        xs = np.array(self.training_data.xs)
-        ax.scatter(xs[:,0], xs[:,1], c=self.training_data.ys, s=2)
+        xs = np.array(data.xs)
+        ax.scatter(xs[:,0], xs[:,1], c=data.ys, s=2)
         for rect in self.safe_rects:
             ax.add_patch(patches.Rectangle((rect.lx, rect.ly), rect.hx-rect.lx, rect.hy-rect.ly, linewidth=1, edgecolor='orange', facecolor='orange', alpha=.5))
         plt.show()
@@ -818,18 +884,18 @@ class BloomCrimeTask(ProbabilityTask):
         pass
     
     def start_verify(self, train_acc, train_loss):
-        if train_acc < 0.85:
+        if train_acc < self.desired_prob*0.9:
             return False
-        print("testing negtive data")
+        print("testing positive data")
         # self.draw()
-        neg_acc, neg_loss = self.test(self.model, self.negative_data, self.compute_loss)
-        # neg_acc, neg_loss = self.test_negative_data(self.negative_dataloader, self.model, self.loss_fn, self.device, self.acc_cnt_fn)
-        # print("Negative data accuracy:", neg_acc)
-        return train_acc > 0.85 and neg_acc > 0.90
+        pos_acc, pos_loss = self.test(self.model, self.positive_data, self.compute_loss)
+        # pos_acc, pos_loss = self.test_negative_data(self.positive_dataloader, self.model, self.loss_fn, self.device, self.acc_cnt_fn)
+        print("Positve data accuracy:", pos_acc)
+        return train_acc > self.desired_prob*0.9 and pos_acc > 0.99
 
-    
     def is_finished(self, results, acc):
         # self.draw()
+        print(results)
         return np.all(results)
 
     
@@ -984,6 +1050,162 @@ class DBIndexTask(Task):
     def is_finished(self, results, acc):
         # self.draw()
         if np.all(results) and acc > 0.85:
+            if self.free_dim_len >= 0.5:
+                return True
+            else:
+                self.free_dim_len = min(self.free_dim_len * 2, 0.5)
+                self.set_spec_free_dim_len()
+        return False
+
+
+class FBDBIndexTask(Task):
+    def __init__(self, add_counterexample = False,  incremental_training = False, batch_counterexample = False, early_rejection = False, incremental_verification = False, start_finetune_epoch = -1, time_out=60, task_index=0, v2_num=10, batch_size=10000):
+        self.add_counterexample = add_counterexample
+        self.incremental_training = incremental_training
+        self.batch_counterexample = batch_counterexample
+        self.early_rejection = early_rejection
+        self.incremental_verification = incremental_verification
+        self.start_finetune_epoch = start_finetune_epoch
+        self.time_out = time_out
+
+        self.task_index = task_index
+        self.v2_num = v2_num
+        self.batch_size = batch_size
+
+        self.set_seed()
+        
+        self.training_data, self.testing_data = self.get_data()
+        self.counterexample_data = datasets.EmptyDataset()
+        self.X_specs, self.Y_specs, self.free_dim_len = self.get_specs()
+        self.spec_check_list = list(zip(self.X_specs, self.Y_specs))
+        self.model = self.get_model()
+        
+        self.set_params()
+
+        self.reset_cnt = 0
+
+        if not add_counterexample:
+            self.counterexample_sampling_size = 0
+        
+        self.task_index = task_index
+        self.is_polytope_spec = False
+    
+    @property
+    def save_name(self):
+        return self.__class__.__name__ + "_" +str(self.task_index) + "_" + ''.join(list(map(lambda x: str(int(x)), [self.add_counterexample, self.incremental_training, self.batch_counterexample, self.early_rejection, self.incremental_verification, self.start_finetune_epoch]))) + "_" + str(self.time_out)
+
+    def get_model(self):
+        if self.task_index == 0:
+            return models.FC(1, 1, 1000, 1).double()
+        else:
+            return models.FC(1, 1, 100, 1).double()
+
+    def training_data_spec_check(self):
+        return 0
+    
+    def get_data(self):
+        
+        v1_data = datasets.FBDataset()
+        n = len(v1_data) // self.v2_num
+        v2_datas = [datasets.FBDataset(start=i*n, end=(i+1)*n) for i in range(self.v2_num)]
+        
+        training_data = v1_data if self.task_index == 0 else v2_datas[self.task_index-1]
+        testing_data = training_data
+        
+        self.all_data = datasets.FBDataset()
+        
+        return training_data, testing_data
+
+    def acc_cnt_fn(self, pred, y):
+        if self.task_index == 0:
+            return (abs(pred - y) < 0.00067).sum()
+        else:
+            return (abs(pred - y) < 0.00067).sum() # this is the realtive error because the data is normalized
+    
+    def call_verification(self, nnet_path, X_spec, Y_spec):
+        status, counterexamples = Main.verify(nnet_path, X_spec, Y_spec, 
+                                                   max_iter=self.max_verify_iter, 
+                                                   sampling_size=self.counterexample_sampling_size,
+                                                   is_polytope=self.is_polytope_spec)
+        return status, counterexamples, None
+
+    def set_params(self):
+        self.save_prefix="../model/realsysdbindex/"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.epochs = 100000
+        # self.batch_size = 100000
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+        self.loss_fn = nn.MSELoss()
+        
+        self.max_verify_iter = 100000000
+        self.counterexample_sampling_size = 1000
+        self.is_polytope_spec = False
+        self.custom_collate = False
+        # self.y_is_class = False
+        # self.time_out = 30
+
+    def get_specs(self, normalize=False):
+        X_specs = []
+        Y_specs = []
+        spec_num = 20 if self.task_index == 0 else 1
+        
+        x_min = np.min(np.ravel(self.training_data.xs))
+        x_max = np.max(np.ravel(self.training_data.xs))
+        y_min = np.min(np.ravel(self.training_data.ys))
+        y_max = np.max(np.ravel(self.training_data.ys))
+        
+        dx = (x_max - x_min) / spec_num
+        x_padding = 0
+        for i in range(spec_num):
+            x_l = x_min + i*dx 
+            x_r = x_min + (i+1)*dx
+            y_l = self.all_data.ys[max(0,np.searchsorted(self.all_data.xs, x_l)-1)]
+            y_r = self.all_data.ys[min(len(self.all_data)-1,np.searchsorted(self.all_data.xs, x_r))]
+            y_padding = (y_r - y_l)/5
+            # print("spec: ", x_l, " ", x_r, " ", y_l, " ", y_r)
+            
+            X_spec = (np.array([x_l + x_padding]).astype(np.float64), np.array([x_r - x_padding]).astype(np.float64))            
+            Y_spec = [np.vstack([-1., 1.]).astype(np.float64), np.array([-(y_l - y_padding), y_r + y_padding]).astype(np.float64)]
+            X_specs.append(X_spec)
+            Y_specs.append(Y_spec)
+
+        free_dim_len = 0.5
+        
+        return X_specs, Y_specs, free_dim_len
+
+    def get_label(self, x, Y_spec):
+        idx = np.searchsorted(self.all_data.xs, x)[0]
+        # print(idx)
+        # print(self.all_data.xs[idx-10:idx+1])
+        # print(self.all_data.xs[idx-1])
+        prev_x = self.all_data.xs[idx-1]
+        next_x = self.all_data.xs[idx]
+        prev_y = self.all_data.ys[idx-1]
+        next_y = self.all_data.ys[idx]
+        return (x - prev_x) / (next_x - prev_x) * (next_y - prev_y) + prev_y
+
+    def draw(self):
+        dataloader = DataLoader(self.testing_data, batch_size=100000)
+        self.model.eval()
+        plt.figure()
+        with torch.no_grad():
+            for X, y in dataloader:
+                X, y = X.to(self.device), y.to(self.device)
+                # Compute prediction error
+                pred = self.model(X)
+                plt.scatter(X, y, c='g')
+                plt.scatter(X, pred, c='r')
+        plt.show()
+        
+    def set_spec_free_dim_len(self):
+        pass
+    
+    def start_verify(self, acc, loss):
+        return acc > 0.99
+    
+    def is_finished(self, results, acc):
+        # self.draw()
+        if np.all(results) and acc > 0.99:
             if self.free_dim_len >= 0.5:
                 return True
             else:

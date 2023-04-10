@@ -206,7 +206,7 @@ function prob_verify_Ai2z(nnet_file, X_spec, Y_spec, desired_prob; max_iter = 1e
     # @show X_spec[2]
 
     Xs = [Hyperrectangle(low=X_spec[1], high=X_spec[2])]
-    println("verifying using Ai2z")
+    # println("verifying using Ai2z")
 
     total_volume = sum([volume(X) for X in Xs])
     # @show total_volume
@@ -241,11 +241,12 @@ function prob_verify_Ai2z(nnet_file, X_spec, Y_spec, desired_prob; max_iter = 1e
     end
 
     Xs = [Xs; remains]
-
+    total_sampled = 0
     for X in Xs
         solver = Ai2z()
         prob = Problem(net, X, Y)
-        res = solve(solver, prob, max_iter=1, sampling_size=sampling_size ÷ length(Xs))[1]
+        res = solve(solver, prob, max_iter=1, sampling_size= total_sampled < sampling_size ? sampling_size ÷ length(Xs) : 0)[1]
+        total_sampled += sampling_size ÷ length(Xs)
         # @show res.status, volume(X)
         if res.status == :holds
             verified_volume += volume(X)
@@ -254,12 +255,12 @@ function prob_verify_Ai2z(nnet_file, X_spec, Y_spec, desired_prob; max_iter = 1e
         end
         res.status == :violated && (push!(counter_examples, res.counter_examples))
     end
-
+    counter_examples = vcat(counter_examples...)
     println("verified prob for this spec: ", verified_volume / total_volume)
 
     (verified_volume / total_volume > desired_prob) && return "holds", nothing, verified_volume
 
-    return "violated", vcat(counter_examples...), verified_volume
+    return "violated", counter_examples, verified_volume
 end
 
 
