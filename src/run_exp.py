@@ -33,7 +33,7 @@ def training_all():
     task_classes = [
                     (tasks.CardWikiTask, 300),   
                     (tasks.RedisTask, 300), 
-                    (tasks.BloomCrimeTask, 500), 
+                    (tasks.BloomCrimeTask, 1000), 
                     (tasks.LinnosTask, 300), 
                     ]
     for task_class, time_out in task_classes:

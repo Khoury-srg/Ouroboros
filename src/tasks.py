@@ -636,6 +636,12 @@ class LinnosTask(MonotonicityTask):
         self.prob_hist = []
         self.custom_collate = True
     
+
+    def set_seed(self):
+        torch.manual_seed(1)
+        np.random.seed(1)
+        random.seed(1)
+
     def get_model(self):
         return models.FC(2, 9, 300, 1)
 
@@ -704,7 +710,7 @@ class LinnosTask(MonotonicityTask):
         return False
     
     def acc_cnt_fn(self, pred, y):
-        return (abs(pred - y) < 5e-2).sum()
+        return (abs(pred - y) < 1e-2).sum()
     
 class ProbabilityTask(Task):
     
